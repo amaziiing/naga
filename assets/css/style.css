@@ -15334,3 +15334,117 @@ body.custom-generated-page .bottom-nav{
     padding:18px 12px 24px!important;
   }
 }
+
+
+/* ===== v1.1.23: Page Customize uses the exact proven Bonus-page viewport =====
+   Generated custom pages now share bonus-scroll-page / bonus-page / bonus-main
+   classes. Keep the scrollable main physically bounded between the normal header
+   and transparent bottom nav, exactly like bonus.html. This final rule intentionally
+   overrides the earlier experimental custom-page viewport rules. */
+@media (min-width:769px){
+  html.bonus-scroll-page body.bonus-page.custom-generated-page{
+    width:100%!important;
+    height:100vh!important;
+    min-height:100vh!important;
+    max-height:100vh!important;
+    overflow:hidden!important;
+    padding:0!important;
+  }
+  html.bonus-scroll-page body.bonus-page.custom-generated-page > .bonus-main.pc-page-main{
+    position:fixed!important;
+    top:69px!important;
+    right:0!important;
+    bottom:57px!important;
+    left:0!important;
+    width:auto!important;
+    height:auto!important;
+    min-height:0!important;
+    max-height:none!important;
+    margin:0!important;
+    padding:24px 16px 30px!important;
+    overflow-x:hidden!important;
+    overflow-y:auto!important;
+    overscroll-behavior-y:contain!important;
+    -webkit-overflow-scrolling:touch!important;
+    touch-action:pan-y!important;
+    box-sizing:border-box!important;
+    contain:paint!important;
+    clip-path:inset(0)!important;
+    z-index:1!important;
+  }
+  html.bonus-scroll-page body.bonus-page.custom-generated-page > .bottom-nav{
+    position:fixed!important;
+    top:auto!important;
+    right:0!important;
+    bottom:0!important;
+    left:0!important;
+    width:100%!important;
+    height:57px!important;
+    min-height:57px!important;
+    max-height:57px!important;
+    z-index:2200!important;
+  }
+}
+@media (max-width:768px){
+  html.bonus-scroll-page body.bonus-page.custom-generated-page{
+    height:100dvh!important;
+    min-height:100dvh!important;
+    max-height:100dvh!important;
+    overflow:hidden!important;
+    padding:0!important;
+  }
+  html.bonus-scroll-page body.bonus-page.custom-generated-page > .bonus-main.pc-page-main{
+    position:fixed!important;
+    top:57px!important;
+    right:0!important;
+    bottom:57px!important;
+    left:0!important;
+    width:auto!important;
+    height:auto!important;
+    min-height:0!important;
+    max-height:none!important;
+    margin:0!important;
+    padding:18px 12px 24px!important;
+    overflow-x:hidden!important;
+    overflow-y:auto!important;
+    overscroll-behavior-y:contain!important;
+    -webkit-overflow-scrolling:touch!important;
+    touch-action:pan-y!important;
+    box-sizing:border-box!important;
+    contain:paint!important;
+    clip-path:inset(0)!important;
+    z-index:1!important;
+  }
+  html.bonus-scroll-page body.bonus-page.custom-generated-page > .bottom-nav{
+    position:fixed!important;
+    top:auto!important;
+    right:0!important;
+    bottom:0!important;
+    left:0!important;
+    width:100%!important;
+    height:57px!important;
+    min-height:57px!important;
+    max-height:57px!important;
+    z-index:2200!important;
+  }
+}
+
+
+/* Compatibility for already-generated custom pages from shell-1/shell-2.
+   Higher specificity intentionally beats their later inline viewport rule. */
+@media (min-width:769px){
+  html:has(body.custom-generated-page) body.custom-generated-page > main.pc-page-main{
+    position:fixed!important;top:69px!important;right:0!important;bottom:57px!important;left:0!important;
+    height:auto!important;min-height:0!important;max-height:none!important;margin:0!important;
+    overflow-x:hidden!important;overflow-y:auto!important;contain:paint!important;clip-path:inset(0)!important;
+    overscroll-behavior-y:contain!important;-webkit-overflow-scrolling:touch!important;touch-action:pan-y!important;
+  }
+}
+@media (max-width:768px){
+  html:has(body.custom-generated-page) body.custom-generated-page > main.pc-page-main{
+    position:fixed!important;top:57px!important;right:0!important;bottom:57px!important;left:0!important;
+    height:auto!important;min-height:0!important;max-height:none!important;margin:0!important;
+    overflow-x:hidden!important;overflow-y:auto!important;contain:paint!important;clip-path:inset(0)!important;
+    overscroll-behavior-y:contain!important;-webkit-overflow-scrolling:touch!important;touch-action:pan-y!important;
+  }
+}
