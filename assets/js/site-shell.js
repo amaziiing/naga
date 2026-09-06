@@ -890,7 +890,57 @@
     renderVipClaimReminder();
   }
 
+
+
+  function syncCustomGeneratedPageViewport(){
+    if(!document.body || !document.body.classList.contains('custom-generated-page')) return;
+    var root = document.documentElement;
+    var main = document.querySelector('.pc-page-main');
+    var header = document.querySelector('.top-header');
+    var nav = document.querySelector('.bottom-nav');
+    if(!main) return;
+    root.classList.add('pc-custom-page-root');
+    function apply(){
+      var vh = window.visualViewport && window.visualViewport.height ? window.visualViewport.height : window.innerHeight;
+      var top = 0;
+      var bottom = 0;
+      if(header){
+        var hr = header.getBoundingClientRect();
+        top = Math.max(0, Math.round(hr.bottom));
+      }
+      if(!top) top = window.matchMedia('(max-width:768px)').matches ? 57 : 69;
+      if(nav){
+        var nr = nav.getBoundingClientRect();
+        bottom = Math.max(0, Math.round(vh - nr.top));
+        if(bottom < 40 || bottom > 140) bottom = Math.round(nr.height || 57);
+      }
+      if(!bottom) bottom = 57;
+      root.style.setProperty('--pc-page-top', top + 'px');
+      root.style.setProperty('--pc-page-bottom', bottom + 'px');
+      main.style.setProperty('overflow-y','scroll','important');
+      main.style.setProperty('overscroll-behavior-y','contain','important');
+      main.style.setProperty('-webkit-overflow-scrolling','touch','important');
+      main.style.setProperty('touch-action','pan-y','important');
+    }
+    apply();
+    requestAnimationFrame(apply);
+    setTimeout(apply,120);
+    setTimeout(apply,500);
+    setTimeout(apply,1200);
+    window.addEventListener('resize', apply, {passive:true});
+    window.addEventListener('orientationchange', apply, {passive:true});
+    if(window.visualViewport) window.visualViewport.addEventListener('resize', apply, {passive:true});
+    document.addEventListener('naga:layout-sections-loaded', apply);
+    document.addEventListener('naga:layout-section-applied', apply);
+    if(window.ResizeObserver){
+      var ro = new ResizeObserver(apply);
+      if(header) ro.observe(header);
+      if(nav) ro.observe(nav);
+    }
+  }
+
   function init(){
+    syncCustomGeneratedPageViewport();
     enhanceHeader();
     initWebsiteTemplateSelector();
     createSideMenu();
