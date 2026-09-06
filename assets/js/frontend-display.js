@@ -48,6 +48,13 @@
     return normalizeEnabled(value, true);
   }
 
+  function extractVipSidebarEnabled(payload){
+    const data = unwrapPayload(payload);
+    const candidates = [data.vipSidebarEnabled, data.vip_sidebar_enabled, data.showVipInSidebar];
+    const value = candidates.find(v => v !== undefined && v !== null);
+    return normalizeEnabled(value, true);
+  }
+
   function setStorage(key, enabled){
     try{ localStorage.setItem(key, enabled ? '1' : '0'); }catch(e){}
   }
@@ -111,9 +118,23 @@
     }));
   }
 
+  function applyVipSidebar(enabled, source){
+    const isEnabled = enabled !== false;
+    window.NAGA_VIP_SIDEBAR_ENABLED = isEnabled;
+    document.documentElement.classList.toggle('vip-sidebar-disabled', !isEnabled);
+    if(document.body) document.body.classList.toggle('vip-sidebar-disabled', !isEnabled);
+    document.querySelectorAll('[data-vip-menu], .mobile-menu-list a[href="vip.html"], .mobile-menu-list a[href$="/vip.html"]').forEach(el => {
+      el.hidden = !isEnabled;
+      if(isEnabled) el.style.removeProperty('display'); else el.style.display='none';
+      el.setAttribute('aria-hidden', isEnabled ? 'false' : 'true');
+    });
+    document.dispatchEvent(new CustomEvent('naga:vip-sidebar-visibility',{detail:{enabled:isEnabled,source:source||'unknown'}}));
+  }
+
   function applySettings(payload, source){
     applyHomeBonus(extractHomeBonusEnabled(payload), source);
     applyLeaderboard(extractLeaderboardEnabled(payload), source);
+    applyVipSidebar(extractVipSidebarEnabled(payload), source);
   }
 
   function cachedLeaderboard(){
@@ -197,6 +218,7 @@
       window.NAGA_LEADERBOARD_ENABLED !== undefined ? window.NAGA_LEADERBOARD_ENABLED : cachedLeaderboard(),
       'dom-reapply'
     );
+    if(window.NAGA_VIP_SIDEBAR_ENABLED !== undefined) applyVipSidebar(window.NAGA_VIP_SIDEBAR_ENABLED, 'dom-reapply');
   }
 
   document.addEventListener('naga:layout-section-applied', reapplyVisibility);
@@ -220,6 +242,7 @@
     applySettings:applySettings,
     applyHomeBonus:applyHomeBonus,
     applyLeaderboard:applyLeaderboard,
+    applyVipSidebar:applyVipSidebar,
     reapplySidebarVisibility:reapplyVisibility
   };
 })();
