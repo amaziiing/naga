@@ -9,6 +9,7 @@
   let mainBalance = null;
   let withdrawalPolicy = null;
   let globalMinWithdraw = Number(window.NAGA_TRANSACTION_LIMITS&&window.NAGA_TRANSACTION_LIMITS.minWithdrawalAmount)||null;
+  let gatewayChannels=[];
 
   function token(){return localStorage.getItem('member_token')||'';}
   function requireLogin(){ if(!token()){ location.href='login.html?redirect=withdraw.html'; return false;} return true; }
@@ -82,6 +83,27 @@
     if(!m.hasTransactionPassword) msg('Please set transaction password in Setting before withdraw.', false);
   }
 
+
+  async function fetchGatewayChannels(){
+    if(!API.paymentGatewayChannels) return [];
+    try{
+      const url=String(API.paymentGatewayChannels)+(String(API.paymentGatewayChannels).includes('?')?'&':'?')+'direction=WITHDRAW&_gateway_ts='+Date.now();
+      const res=await fetch(url,{cache:'no-store',headers:{'Cache-Control':'no-cache, no-store, must-revalidate',Pragma:'no-cache'}});
+      const json=await res.json().catch(()=>({}));
+      if(!res.ok||json.status==='error') return [];
+      gatewayChannels=Array.isArray(json.data&&json.data.content)?json.data.content:[];
+      renderGatewayChannels(); return gatewayChannels;
+    }catch(e){gatewayChannels=[];renderGatewayChannels();return [];}
+  }
+  function renderGatewayChannels(){
+    let wrap=document.getElementById('withdrawGatewayWrap');
+    if(!gatewayChannels.length){ if(wrap) wrap.remove(); return; }
+    if(!wrap){
+      wrap=document.createElement('label');wrap.id='withdrawGatewayWrap';wrap.className='withdraw-field';
+      const bankBox=document.querySelector('.withdraw-bank-box');bankBox?.before(wrap);
+    }
+    wrap.innerHTML=`<span>Withdrawal Method</span><select id="withdrawGatewayChannel"><option value="">Manual / BO payout</option>${gatewayChannels.map(g=>`<option value="${String(g.id).replace(/"/g,'')}">${String(g.displayName||g.gatewayName||'Payment Gateway').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))} · ${String(g.gatewayName||'Gateway').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}</option>`).join('')}</select><small style="display:block;margin-top:6px;opacity:.78">If a gateway is selected, BO approval will send the payout through that configured API.</small>`;
+  }
   async function submitWithdraw(){
     if(!requireLogin()) return;
     const val=Number(amount?.value||0);
@@ -91,7 +113,7 @@
     if(fixed===null && val<globalMinWithdraw){msg('Minimum withdraw is '+money(globalMinWithdraw),false);return;}
     submit.disabled=true; msg('Submitting withdraw request...',true);
     try{
-      const res=await fetch(API.memberWithdraw,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token()},body:JSON.stringify({amount:val,transactionPassword:txInput?.value||''})});
+      const res=await fetch(API.memberWithdraw,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token()},body:JSON.stringify({amount:val,transactionPassword:txInput?.value||'',gatewayChannelId:document.getElementById('withdrawGatewayChannel')?.value||null})});
       const json=await res.json().catch(()=>({}));
       if(!res.ok||json.status==='error') throw new Error(json.message||'Withdraw failed');
       msg(json.message||'Withdraw submitted, waiting BO approval.',true);
@@ -112,7 +134,7 @@
 
   document.addEventListener('DOMContentLoaded',async()=>{
     if(!requireLogin()) return;
-    await Promise.allSettled([loadMe(),fetchMainBalance(),fetchTransactionLimits()]);
+    await Promise.allSettled([loadMe(),fetchMainBalance(),fetchTransactionLimits(),fetchGatewayChannels()]);
     fetchWithdrawalPolicy().catch(e=>msg(e.message,false));
     submit?.addEventListener('click',submitWithdraw);
   });

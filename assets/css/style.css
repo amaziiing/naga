@@ -15199,3 +15199,9 @@ html[data-home-bonus-enabled="pending"] body.home-page [data-home-bonus-display]
     bottom:72px!important;
   }
 }
+
+/* Payment-gateway deposits redirect externally and never require manual proof upload. */
+#depositProofWrap[hidden]{display:none!important;}
+
+/* Payment gateway logo */
+.pay-method span .gateway-method-logo{display:block;max-width:72px;max-height:44px;width:auto;height:auto;object-fit:contain;margin:0 auto}.pay-method span .gateway-method-fallback{font-style:normal;font-size:30px}

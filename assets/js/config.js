@@ -59,6 +59,9 @@ window.NAGA_API = {
   memberChangeMobile: window.NAGA_CONFIG.api.baseUrl + '/api/auth/member/mobile/change',
   memberDownline: window.NAGA_CONFIG.api.baseUrl + '/api/member/downline',
   paymentMethodList: window.NAGA_CONFIG.api.baseUrl + '/api/payment-method/list',
+  paymentGatewayChannels: window.NAGA_CONFIG.api.baseUrl + '/api/payment-gateway/channels',
+  paymentGatewayDeposit: window.NAGA_CONFIG.api.baseUrl + '/api/payment-gateway/deposit',
+  paymentGatewayTransaction: window.NAGA_CONFIG.api.baseUrl + '/api/payment-gateway/transaction',
   socialLinkList: window.NAGA_CONFIG.api.baseUrl + '/api/social/list',
 
   siteCustomizeTranslation: window.NAGA_CONFIG.api.baseUrl + '/api/public/translation',

@@ -6,9 +6,9 @@
   const grid=document.querySelector('.payment-grid');
   let paymentMethods=[];
   let selectedIndex=-1;
-  const PAYMENT_CACHE_KEY='naga_payment_methods_v1:'+location.host;
-  function readPaymentCache(){try{const x=JSON.parse(localStorage.getItem(PAYMENT_CACHE_KEY)||'[]');return Array.isArray(x)?x:[];}catch(e){return [];}}
-  function writePaymentCache(rows){try{localStorage.setItem(PAYMENT_CACHE_KEY,JSON.stringify(rows||[]));}catch(e){}}
+  const PAYMENT_CACHE_KEY='naga_payment_methods_v2:'+location.host;
+  function readPaymentCache(){try{const x=JSON.parse(localStorage.getItem(PAYMENT_CACHE_KEY)||'[]');return Array.isArray(x)?x.filter(m=>!m?.isGateway&&String(m?.methodType||'').toUpperCase()!=='GATEWAY'):[];}catch(e){return [];}}
+  function writePaymentCache(rows){try{localStorage.setItem(PAYMENT_CACHE_KEY,JSON.stringify((rows||[]).filter(m=>!m?.isGateway&&String(m?.methodType||'').toUpperCase()!=='GATEWAY')));}catch(e){}}
   let minimumDeposit=Number(window.NAGA_TRANSACTION_LIMITS&&window.NAGA_TRANSACTION_LIMITS.minDepositAmount)||null;
   const minimumDisplay=document.getElementById('depositMinimumDisplay');
 
@@ -36,7 +36,7 @@
   }
 
   function selectedMethod(){ const m=paymentMethods[selectedIndex]; return m ? (m.displayName || m.methodType || '') : ''; }
-  function icon(type){ if(type==='EWALLET') return '📱'; if(type==='CARD') return '💳'; return '🏦'; }
+  function icon(type,m){ if(m&&m.isGateway){const u=String(m.gatewayLogoUrl||'').trim();return u?`<img class="gateway-method-logo" src="${esc(u)}" alt="${esc(m.gatewayName||m.displayName||'Gateway')}" onerror="this.style.display='none';this.nextElementSibling.style.display=''"><i class="gateway-method-fallback" style="display:none">⚡</i>`:'⚡';} if(type==='EWALLET') return '📱'; if(type==='CARD') return '💳'; return '🏦'; }
   function renderMethodButtons(){
     if(!grid) return;
     if(!paymentMethods.length){
@@ -46,7 +46,7 @@
       return;
     }
     if(selectedIndex < 0 || selectedIndex >= paymentMethods.length) selectedIndex=0;
-    grid.innerHTML=paymentMethods.map((m,i)=>`<button type="button" class="pay-method ${i===selectedIndex?'active':''}" data-method-index="${i}"><span>${icon(String(m.methodType||'').toUpperCase())}</span><b>${esc(m.displayName||m.methodType||'-')}</b><em>${esc(m.subtitle||'')}</em></button>`).join('');
+    grid.innerHTML=paymentMethods.map((m,i)=>`<button type="button" class="pay-method ${i===selectedIndex?'active':''}" data-method-index="${i}"><span>${icon(String(m.methodType||'').toUpperCase(),m)}</span><b>${esc(m.displayName||m.methodType||'-')}</b><em>${esc(m.subtitle||'')}</em></button>`).join('');
     grid.querySelectorAll('.pay-method').forEach(btn=>btn.addEventListener('click',()=>{
       grid.querySelectorAll('.pay-method').forEach(x=>x.classList.remove('active'));
       btn.classList.add('active');
@@ -60,24 +60,28 @@
       paymentMethods=readPaymentCache().filter(m=>Number(m&&m.status==null?1:m.status)!==0);
       if(paymentMethods.length) renderMethodButtons();
     }
-    try{
-      const url=String(API.paymentMethodList)+(String(API.paymentMethodList).includes('?')?'&':'?')+'_payment_ts='+Date.now();
-      const res=await fetch(url,{cache:'no-store',headers:{'Cache-Control':'no-cache, no-store, must-revalidate',Pragma:'no-cache'}});
-      const json=await res.json().catch(()=>({}));
-      if(res.ok&&json.status!=='error'){
-        const rows=(json.data&&json.data.content)||json.data||[];
-        if(Array.isArray(rows)){
-          paymentMethods=rows.filter(m=>Number(m&&m.status==null?1:m.status)!==0);
-          writePaymentCache(paymentMethods);
-        }
-      }
-    }catch(e){}
+    const manualUrl=String(API.paymentMethodList)+(String(API.paymentMethodList).includes('?')?'&':'?')+'_payment_ts='+Date.now();
+    const gatewayUrl=String(API.paymentGatewayChannels||'')+(String(API.paymentGatewayChannels||'').includes('?')?'&':'?')+'direction=DEPOSIT&_gateway_ts='+Date.now();
+    const [manualResult,gatewayResult]=await Promise.allSettled([
+      fetch(manualUrl,{cache:'no-store',headers:{'Cache-Control':'no-cache, no-store, must-revalidate',Pragma:'no-cache'}}).then(async res=>({res,json:await res.json().catch(()=>({}))})),
+      API.paymentGatewayChannels?fetch(gatewayUrl,{cache:'no-store',headers:{'Cache-Control':'no-cache, no-store, must-revalidate',Pragma:'no-cache'}}).then(async res=>({res,json:await res.json().catch(()=>({}))})):Promise.resolve(null)
+    ]);
+    const merged=[];
+    if(manualResult.status==='fulfilled'&&manualResult.value){const {res,json}=manualResult.value;if(res.ok&&json.status!=='error'){const rows=(json.data&&json.data.content)||json.data||[];if(Array.isArray(rows))merged.push(...rows.filter(m=>Number(m&&m.status==null?1:m.status)!==0&&String(m?.methodType||'').toUpperCase()!=='GATEWAY'));}}
+    if(gatewayResult.status==='fulfilled'&&gatewayResult.value){const {res,json}=gatewayResult.value;if(res.ok&&json.status!=='error'){const rows=(json.data&&json.data.content)||[];if(Array.isArray(rows)){const grouped=new Map();for(const g of rows){const separate=Number(g.depositChannelSelection||0)===1;if(separate){merged.push({...g,id:'gateway:'+g.id,gatewayChannelId:g.id,isGateway:true,methodType:'GATEWAY',subtitle:g.gatewayName||'Online Payment',status:1});continue;}const key=String(g.gatewayId);if(!grouped.has(key))grouped.set(key,{...g,id:'gateway-group:'+g.gatewayId,gatewayChannelId:null,isGateway:true,isGatewayGroup:true,methodType:'GATEWAY',displayName:g.gatewayName||g.displayName||'Online Payment',gatewayLogoUrl:g.gatewayLogoUrl||'',subtitle:'Online Payment',minAmount:0,maxAmount:0,status:1});}merged.push(...grouped.values());}}}
+    if(merged.length){paymentMethods=merged;writePaymentCache(paymentMethods);}else if(!paymentMethods.length){paymentMethods=[];}
     renderMethodButtons();
   }
   function renderPaymentInfo(){
     let box=document.getElementById('paymentInfoBox'); if(!box){ box=document.createElement('div'); box.id='paymentInfoBox'; box.className='deposit-note payment-config-box'; grid?.after(box); }
     const m=paymentMethods[selectedIndex]||null;
     if(!m){ box.innerHTML=''; return; }
+    if(m.isGateway){
+      box.innerHTML=`<b>${esc(m.displayName||m.gatewayName||'Online Payment')}</b><p>Secure online payment via ${esc(m.gatewayName||'payment gateway')}. You will be redirected to complete payment after submit.</p>${m.minAmount?`<small>Minimum: ${esc(money(m.minAmount))}</small>`:''}${m.maxAmount&&Number(m.maxAmount)>0?`<small> · Maximum: ${esc(money(m.maxAmount))}</small>`:''}`;
+      const proofWrap=document.getElementById('depositProofWrap'); if(proofWrap) proofWrap.hidden=true;
+      return;
+    }
+    const proofWrap=document.getElementById('depositProofWrap'); if(proofWrap) proofWrap.hidden=false;
     const rows=[];
     if(m.bankName) rows.push(`<div><b>Bank Name</b><span>${esc(m.bankName)}</span></div>`);
     if(m.accountName) rows.push(`<div><b>Account Name</b><span>${esc(m.accountName)}</span></div>`);
@@ -109,9 +113,19 @@
   async function submitDeposit(){
     if(!requireLogin()) return; if(minimumDeposit==null){ msg('Deposit setting is still loading from BO. Please try again.',false); return; } const amount=Number(input?.value||0); if(amount<minimumDeposit){ msg('Minimum deposit is '+money(minimumDeposit),false); return; }
     const method=paymentMethods[selectedIndex]; if(!method){ msg('Please select a payment method',false); return; }
-    const fd=new FormData(); fd.append('amount', String(amount)); if(method.id!=null){ fd.append('paymentMethodId', String(method.id)); fd.append('selectedPaymentMethodId', String(method.id)); } fd.append('paymentMethod', String(method.displayName||method.bankName||method.methodType||selectedMethod())); const proof=document.getElementById('depositProof')?.files?.[0]; if(proof) fd.append('proof', proof);
-    submit.disabled=true; msg('Submitting deposit request...', true);
-    try{ const res=await fetch(API.memberDeposit,{method:'POST',headers:{Authorization:'Bearer '+token()},body:fd}); const json=await res.json().catch(()=>({})); if(!res.ok||json.status==='error') throw new Error(json.message||'Deposit failed'); msg(json.message||'Deposit submitted, waiting BO approval.', true); input.value=''; const proofInput=document.getElementById('depositProof'); if(proofInput){ proofInput.value=''; document.getElementById('paymentProofEmpty')?.removeAttribute('hidden'); document.getElementById('paymentProofPreview')?.setAttribute('hidden','hidden'); } await loadBalance().catch(()=>{}); }
+    if(Number(method.minAmount||0)>0&&amount<Number(method.minAmount)){msg('Minimum for this payment method is '+money(method.minAmount),false);return;}
+    if(Number(method.maxAmount||0)>0&&amount>Number(method.maxAmount)){msg('Maximum for this payment method is '+money(method.maxAmount),false);return;}
+    submit.disabled=true; msg(method.isGateway?'Starting secure payment...':'Submitting deposit request...', true);
+    try{
+      if(method.isGateway){
+        const res=await fetch(API.paymentGatewayDeposit,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token()},body:JSON.stringify(method.gatewayChannelId?{amount,channelId:method.gatewayChannelId}:{amount,gatewayId:method.gatewayId})});
+        const json=await res.json().catch(()=>({})); if(!res.ok||json.status==='error') throw new Error(json.message||'Payment gateway failed');
+        const redirect=json.data&&json.data.redirectUrl; if(!redirect) throw new Error('Payment gateway did not return a payment URL');
+        msg('Redirecting to '+(method.gatewayName||'payment gateway')+'...',true); location.href=redirect; return;
+      }
+      const fd=new FormData(); fd.append('amount', String(amount)); if(method.id!=null){ fd.append('paymentMethodId', String(method.id)); fd.append('selectedPaymentMethodId', String(method.id)); } fd.append('paymentMethod', String(method.displayName||method.bankName||method.methodType||selectedMethod())); const proof=document.getElementById('depositProof')?.files?.[0]; if(proof) fd.append('proof', proof);
+      const res=await fetch(API.memberDeposit,{method:'POST',headers:{Authorization:'Bearer '+token()},body:fd}); const json=await res.json().catch(()=>({})); if(!res.ok||json.status==='error') throw new Error(json.message||'Deposit failed'); msg(json.message||'Deposit submitted, waiting BO approval.', true); input.value=''; const proofInput=document.getElementById('depositProof'); if(proofInput){ proofInput.value=''; document.getElementById('paymentProofEmpty')?.removeAttribute('hidden'); document.getElementById('paymentProofPreview')?.setAttribute('hidden','hidden'); } await loadBalance().catch(()=>{});
+    }
     catch(e){ msg(e.message||'Deposit failed', false); }
     finally{ submit.disabled=false; }
   }
