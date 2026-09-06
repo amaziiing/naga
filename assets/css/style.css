@@ -15205,3 +15205,65 @@ html[data-home-bonus-enabled="pending"] body.home-page [data-home-bonus-display]
 
 /* Payment gateway logo */
 .pay-method span .gateway-method-logo{display:block;max-width:72px;max-height:44px;width:auto;height:auto;object-fit:contain;margin:0 auto}.pay-method span .gateway-method-fallback{font-style:normal;font-size:30px}
+
+/* ===== v1.1.21: Page Customize generated pages never paint under bottom nav =====
+   All present/future generated pages use body.custom-generated-page + .pc-page-main.
+   Clamp the content viewport above the transparent fixed bottom navigation on
+   desktop, tablet and mobile, matching the long-page protection used elsewhere. */
+html:has(body.custom-generated-page){
+  height:100dvh!important;
+  min-height:100dvh!important;
+  max-height:100dvh!important;
+  overflow:hidden!important;
+}
+body.custom-generated-page{
+  height:100dvh!important;
+  min-height:0!important;
+  max-height:100dvh!important;
+  overflow:hidden!important;
+  padding-bottom:0!important;
+}
+body.custom-generated-page > .pc-page-main{
+  position:fixed!important;
+  top:69px!important;
+  right:0!important;
+  bottom:57px!important;
+  left:0!important;
+  width:auto!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  margin:0!important;
+  padding:24px 16px!important;
+  overflow-x:hidden!important;
+  overflow-y:auto!important;
+  box-sizing:border-box!important;
+  contain:paint!important;
+  clip-path:inset(0)!important;
+  overscroll-behavior-y:contain!important;
+  -webkit-overflow-scrolling:touch!important;
+  touch-action:pan-y!important;
+  scroll-padding-bottom:24px!important;
+  z-index:1!important;
+}
+body.custom-generated-page > .bottom-nav{
+  position:fixed!important;
+  top:auto!important;
+  right:0!important;
+  bottom:0!important;
+  left:0!important;
+  width:100%!important;
+  height:57px!important;
+  min-height:57px!important;
+  max-height:57px!important;
+  margin:0!important;
+  z-index:2200!important;
+}
+@media (max-width:768px){
+  body.custom-generated-page > .pc-page-main{
+    top:57px!important;
+    bottom:57px!important;
+    padding:18px 12px 20px!important;
+    scroll-padding-bottom:20px!important;
+  }
+}
