@@ -566,12 +566,37 @@
   // shared shell. Historically only index.html loaded frontend-display.js, so
   // BO-controlled items such as Leaderboard stayed hidden on direct/internal
   // pages. Delay until DOMContentLoaded so config.js has been parsed first.
+  let frontendDisplayLoadTimer = null;
+  let frontendDisplayLoadAttempts = 0;
   function ensureFrontendDisplayController(){
     if(window.NagaFrontendDisplay || document.querySelector('script[data-naga-frontend-display-loader]')) return;
+
+    // Most pages load site-shell.js before config.js. On those pages the old
+    // loader could fetch frontend-display.js before NAGA_CONFIG/NAGA_API existed,
+    // causing its first API request to have an empty URL. index.html worked only
+    // because it also loaded frontend-display.js explicitly after config.js.
+    // Wait until the shared API config is ready so BO display settings behave the
+    // same on every frontend page.
+    const hasApiConfig = !!(
+      (window.NAGA_API && window.NAGA_API.frontendDisplaySetting) ||
+      (window.NAGA_CONFIG && window.NAGA_CONFIG.api && window.NAGA_CONFIG.api.baseUrl)
+    );
+    if(!hasApiConfig && frontendDisplayLoadAttempts < 80){
+      frontendDisplayLoadAttempts += 1;
+      clearTimeout(frontendDisplayLoadTimer);
+      frontendDisplayLoadTimer = setTimeout(ensureFrontendDisplayController, 50);
+      return;
+    }
+
     const script=document.createElement('script');
-    script.src='assets/js/frontend-display.js?v=1.0.4';
-    script.async=true;
+    script.src='assets/js/frontend-display.js?v=1.0.8';
+    script.async=false;
     script.setAttribute('data-naga-frontend-display-loader','1');
+    script.onload=function(){
+      if(window.NagaFrontendDisplay && typeof window.NagaFrontendDisplay.refresh === 'function'){
+        window.NagaFrontendDisplay.refresh({force:true});
+      }
+    };
     document.head.appendChild(script);
   }
 

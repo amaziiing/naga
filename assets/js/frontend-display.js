@@ -144,7 +144,10 @@
   let refreshPromise = null;
   let lastPayload = null;
   let lastSuccessAt = 0;
+  let retryTimer = null;
+  let retryCount = 0;
   const REFRESH_DEDUPE_MS = 1500;
+  const MAX_RETRY_COUNT = 12;
 
   async function waitForBrand(){
     try{
@@ -191,6 +194,8 @@
         }
 
         applySettings(payload, 'api');
+        retryCount = 0;
+        clearTimeout(retryTimer);
         lastPayload = payload;
         lastSuccessAt = Date.now();
         return payload;
@@ -200,8 +205,17 @@
          * On request failure we keep the current DOM/default state. This prevents a
          * stale refresh from permanently hiding an Enabled BO setting.
          */
-        console.warn('Frontend display setting load failed; preserving current Home Bonus state.', error);
+        console.warn('Frontend display setting load failed; preserving current display state.', error);
         applyLeaderboard(cachedLeaderboard(), 'cache-fallback');
+
+        // Internal pages may initialize before brand/config bootstrapping is fully
+        // ready. Retry instead of permanently leaving VIP at its default visible
+        // state after one early failed request.
+        if(retryCount < MAX_RETRY_COUNT){
+          retryCount += 1;
+          clearTimeout(retryTimer);
+          retryTimer = setTimeout(function(){ refresh({force:true}); }, Math.min(250 * retryCount, 1500));
+        }
         return null;
       }finally{
         refreshPromise = null;
