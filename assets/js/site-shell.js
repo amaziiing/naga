@@ -907,6 +907,14 @@
       if(header){
         var hr = header.getBoundingClientRect();
         top = Math.max(0, Math.round(hr.bottom));
+        // Page Customize pages place the global BO-controlled marquee directly
+        // below the normal top header. Use the marquee bottom edge as the real
+        // content start so generated pages never render underneath it.
+        var marquee = document.getElementById('nagaGlobalMarquee');
+        if(marquee && getComputedStyle(marquee).display !== 'none'){
+          var mr = marquee.getBoundingClientRect();
+          top = Math.max(top, Math.round(mr.bottom));
+        }
       }
       if(!top) top = window.matchMedia('(max-width:768px)').matches ? 57 : 69;
       if(nav){
