@@ -463,9 +463,26 @@
     translateShellScope(header);
   }
 
+  function ensureBrandMobileAccountState(){
+    document.querySelectorAll('.brand-mobile-account-panel').forEach(function(panel){
+      var member = panel.querySelector('.brand-mobile-panel-member');
+      if(!member){
+        member = document.createElement('div');
+        member.className = 'brand-mobile-panel-member';
+        member.setAttribute('aria-live', 'polite');
+        member.innerHTML = '<span class="brand-mobile-panel-balance-label" data-i18n="balance_label">Balance:</span><strong class="brand-mobile-panel-balance-value" data-main-wallet-balance>&nbsp;</strong>';
+        var actions = panel.querySelector('.brand-mobile-panel-actions');
+        if(actions) panel.insertBefore(member, actions);
+        else panel.appendChild(member);
+        translateShellScope(member);
+      }
+    });
+  }
+
   function refreshHeaderAuth(){
     var logged = isLoggedIn();
     document.body.classList.toggle('member-logged-in', logged);
+    ensureBrandMobileAccountState();
 
     // Apply visibility directly as well as through CSS. The BO layout loader can
     // replace the header after initial render, especially on iPhone Safari.
@@ -503,6 +520,10 @@
     document.querySelectorAll('.brand-mobile-panel-auth').forEach(function(el){
       el.style.setProperty('display', logged ? 'none' : 'flex', 'important');
       el.setAttribute('aria-hidden', logged ? 'true' : 'false');
+    });
+    document.querySelectorAll('.brand-mobile-panel-member').forEach(function(el){
+      el.style.setProperty('display', logged ? 'flex' : 'none', 'important');
+      el.setAttribute('aria-hidden', logged ? 'false' : 'true');
     });
     // Deposit/Withdraw must remain visible for both guests and logged-in members.
     // Only Login/Register is conditional on the member session.
@@ -969,6 +990,16 @@
     createSideMenu();
     bindMenu();
     window.addEventListener('storage', refreshHeaderAuth);
+    document.addEventListener('naga:layout-section-applied', function(e){
+      var sectionKey = e && e.detail && e.detail.sectionKey;
+      if(sectionKey === 'frontend-sidebar') updateSideLangLabel();
+      if(!sectionKey || sectionKey === 'home-mobile-before-category'){
+        refreshHeaderAuth();
+        var cached = getStoredBalance();
+        if(getToken() && cached !== null) setAllWalletText(cached);
+        if(getToken()) refreshShellBalance();
+      }
+    });
     document.addEventListener('click', function(e){
       if(e.target.closest && e.target.closest('[data-member-logout]')) setTimeout(refreshHeaderAuth, 80);
       if(e.target.closest && e.target.closest('[data-refresh-main-wallet]')) {
@@ -985,5 +1016,5 @@
 
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
-  window.NAGA_SITE_SHELL = { refreshHeaderAuth: refreshHeaderAuth, refreshBalance: refreshShellBalance, refreshMemberToken: refreshMemberToken, openMenu: openMenu, closeMenu: closeMenu, logout: doShellLogout, rehydrate: rehydrateShell, refreshVipClaimReminder: refreshVipClaimReminder, openWebsiteTemplateSelector: openWebsiteTemplateSelector, closeWebsiteTemplateSelector: closeWebsiteTemplateSelector };
+  window.NAGA_SITE_SHELL = { refreshHeaderAuth: refreshHeaderAuth, refreshBalance: refreshShellBalance, refreshLanguageLabel: updateSideLangLabel, refreshMemberToken: refreshMemberToken, openMenu: openMenu, closeMenu: closeMenu, logout: doShellLogout, rehydrate: rehydrateShell, refreshVipClaimReminder: refreshVipClaimReminder, openWebsiteTemplateSelector: openWebsiteTemplateSelector, closeWebsiteTemplateSelector: closeWebsiteTemplateSelector };
 })();

@@ -812,6 +812,11 @@
         if (typeof window.NAGA_SITE_SHELL.refreshBalance === 'function') {
           window.NAGA_SITE_SHELL.refreshBalance();
         }
+        // The BO sidebar HTML is restored after rehydrate() so custom wording stays
+        // authoritative. Re-apply only the dynamic next-language indicator afterwards.
+        if (sectionKey === 'frontend-sidebar' && typeof window.NAGA_SITE_SHELL.refreshLanguageLabel === 'function') {
+          window.NAGA_SITE_SHELL.refreshLanguageLabel();
+        }
       }
 
       document.dispatchEvent(new CustomEvent('naga:site-shell-customized', { detail: { sectionKey: sectionKey } }));
