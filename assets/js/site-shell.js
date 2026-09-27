@@ -463,27 +463,9 @@
     translateShellScope(header);
   }
 
-  function ensureBrandMobileAccountState(){
-    document.querySelectorAll('.brand-mobile-account-panel').forEach(function(panel){
-      var member = panel.querySelector('.brand-mobile-panel-member');
-      if(!member){
-        member = document.createElement('div');
-        member.className = 'brand-mobile-panel-member';
-        member.setAttribute('aria-live', 'polite');
-        member.innerHTML = '<span class="brand-mobile-panel-balance-label" data-i18n="balance_label">Balance:</span><strong class="brand-mobile-panel-balance-value" data-main-wallet-balance>&nbsp;</strong>';
-        var actions = panel.querySelector('.brand-mobile-panel-actions');
-        if(actions) panel.insertBefore(member, actions);
-        else panel.appendChild(member);
-        translateShellScope(member);
-      }
-    });
-  }
-
   function refreshHeaderAuth(){
     var logged = isLoggedIn();
     document.body.classList.toggle('member-logged-in', logged);
-    ensureBrandMobileAccountState();
-
     // Apply visibility directly as well as through CSS. The BO layout loader can
     // replace the header after initial render, especially on iPhone Safari.
     document.querySelectorAll('.top-auth-actions').forEach(function(el){
@@ -514,22 +496,15 @@
       el.setAttribute('aria-hidden', logged ? 'true' : 'false');
     });
 
-    // BO layout sections can provide a custom mobile account panel. Keep its
-    // guest/member controls in sync with the same member session used by the
-    // header and sidebar, even after the BO layout HTML is replaced at runtime.
-    document.querySelectorAll('.brand-mobile-panel-auth').forEach(function(el){
-      el.style.setProperty('display', logged ? 'none' : 'flex', 'important');
+    // BO Layout Section owns all markup and styling. The frontend only applies
+    // auth state to explicit BO hooks and fills existing wallet placeholders.
+    document.querySelectorAll('[data-auth-guest]').forEach(function(el){
+      el.hidden = logged;
       el.setAttribute('aria-hidden', logged ? 'true' : 'false');
     });
-    document.querySelectorAll('.brand-mobile-panel-member').forEach(function(el){
-      el.style.setProperty('display', logged ? 'flex' : 'none', 'important');
+    document.querySelectorAll('[data-auth-member]').forEach(function(el){
+      el.hidden = !logged;
       el.setAttribute('aria-hidden', logged ? 'false' : 'true');
-    });
-    // Deposit/Withdraw must remain visible for both guests and logged-in members.
-    // Only Login/Register is conditional on the member session.
-    document.querySelectorAll('.brand-mobile-panel-actions').forEach(function(el){
-      el.style.setProperty('display', 'flex', 'important');
-      el.setAttribute('aria-hidden', 'false');
     });
     if(!logged){
       document.querySelectorAll('#mobileSideMenu [data-main-wallet-balance]').forEach(function(el){

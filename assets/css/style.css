@@ -15553,18 +15553,3 @@ body.custom-generated-page .bottom-nav{
 body.member-logged-in .top-auth-actions.top-persistent-actions {
   display:flex!important;
 }
-
-
-/* ===== v1.1.28: BO mobile account panel session state =====
-   BO supplies the panel markup. Frontend only controls guest/member state and
-   displays the same main-wallet value used by the desktop balance widget. */
-.brand-mobile-panel-member { display:none; }
-body.member-logged-in .brand-mobile-account-panel .brand-mobile-panel-auth { display:none!important; }
-body.member-logged-in .brand-mobile-account-panel .brand-mobile-panel-member {
-  display:flex!important;
-  flex-direction:column;
-  justify-content:center;
-  min-width:0;
-}
-.brand-mobile-panel-balance-label { font-size:12px; line-height:1.2; }
-.brand-mobile-panel-balance-value { font-size:18px; line-height:1.25; white-space:nowrap; }
