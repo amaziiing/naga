@@ -102,7 +102,7 @@
       wrap=document.createElement('label');wrap.id='withdrawGatewayWrap';wrap.className='withdraw-field';
       const bankBox=document.querySelector('.withdraw-bank-box');bankBox?.before(wrap);
     }
-    wrap.innerHTML=`<span>Withdrawal Method</span><select id="withdrawGatewayChannel"><option value="">Manual / BO payout</option>${gatewayChannels.map(g=>`<option value="${String(g.id).replace(/"/g,'')}">${String(g.displayName||g.gatewayName||'Payment Gateway').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))} · ${String(g.gatewayName||'Gateway').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}</option>`).join('')}</select><small style="display:block;margin-top:6px;opacity:.78">If a gateway is selected, BO approval will send the payout through that configured API.</small>`;
+    wrap.innerHTML=`<span>Withdrawal Method</span><select id="withdrawGatewayChannel"><option value="">Manual Payout</option>${gatewayChannels.map(g=>`<option value="${String(g.id).replace(/"/g,'')}">${String(g.displayName||g.gatewayName||'Payment Gateway').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))} · ${String(g.gatewayName||'Gateway').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}</option>`).join('')}</select><small style="display:block;margin-top:6px;opacity:.78">If a gateway is selected, BO approval will send the payout through that configured API.</small>`;
   }
   async function submitWithdraw(){
     if(!requireLogin()) return;
