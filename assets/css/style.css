@@ -3974,7 +3974,8 @@ body.login-page{
     margin:14px 0;
 }
 
-.withdraw-field input{
+.withdraw-field input,
+.withdraw-field select{
     width:100%;
     height:46px;
     margin-top:7px;
@@ -3985,6 +3986,14 @@ body.login-page{
     font-size:15px;
     color:#102c38;
     background:rgba(255,255,255,.95);
+    box-sizing:border-box;
+}
+
+/* Keep dynamically loaded withdrawal-method selector consistent with the
+   existing withdraw form controls instead of falling back to browser defaults. */
+.withdraw-field select{
+    cursor:pointer;
+    padding-right:42px;
 }
 
 .withdraw-bank-box{
