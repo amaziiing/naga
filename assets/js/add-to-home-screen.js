@@ -175,43 +175,42 @@
     }
   }
 
-  function refreshButton(){
-    var btn = document.getElementById('nagaAddToHomeScreen');
-    if (!btn) return;
-    if (isStandalone() || installed) {
-      btn.hidden = true;
-      return;
-    }
-    btn.hidden = false;
-    var text = btn.querySelector('.naga-a2hs-label');
-    if (text) text.textContent = label();
-    btn.setAttribute('aria-label', label());
+  function getButtons(){
+    return document.querySelectorAll('#nagaAddToHomeScreen, [data-add-to-home-screen]');
   }
 
-  function insertButton(){
-    if (isStandalone() || installed) return;
-    var list = document.querySelector('#mobileSideMenu .mobile-menu-list');
-    if (!list || document.getElementById('nagaAddToHomeScreen')) {
-      refreshButton();
-      return;
-    }
-    var btn = document.createElement('button');
-    btn.id = 'nagaAddToHomeScreen';
-    btn.type = 'button';
-    btn.className = 'naga-a2hs-button';
-    btn.innerHTML = '<i class="fa-solid fa-mobile-screen-button mobile-menu-icon sidebar-item-icon" aria-hidden="true"></i><span class="naga-a2hs-label"></span><i class="fa-solid fa-chevron-right mobile-menu-arrow sidebar-item-chevron" aria-hidden="true"></i>';
-    btn.addEventListener('click', onInstallClick, {passive:false});
-    var logout = list.querySelector('[data-member-logout],.mobile-menu-list-logout');
-    if (logout) list.insertBefore(btn, logout); else list.appendChild(btn);
+  function refreshButton(){
+    var buttons = getButtons();
+    Array.prototype.forEach.call(buttons, function(btn){
+      if (isStandalone() || installed) {
+        btn.hidden = true;
+        return;
+      }
+      btn.hidden = false;
+      var text = btn.querySelector('.naga-a2hs-label');
+      if (text) text.textContent = label();
+      btn.setAttribute('aria-label', label());
+    });
+  }
+
+  function bindExistingButtons(){
+    // BO Layout Section is the source of truth for sidebar markup.
+    // Never create/prefetch/append a sidebar item here; only bind install
+    // behaviour when BO explicitly includes an install button/hook.
+    var buttons = getButtons();
+    Array.prototype.forEach.call(buttons, function(btn){
+      if (btn.dataset.nagaA2hsBound === '1') return;
+      btn.dataset.nagaA2hsBound = '1';
+      btn.addEventListener('click', onInstallClick, {passive:false});
+    });
     refreshButton();
   }
 
   function scheduleInsert(){
-    // Keep the install feature out of the critical rendering path.
     if ('requestIdleCallback' in window) {
-      window.requestIdleCallback(insertButton, {timeout:1200});
+      window.requestIdleCallback(bindExistingButtons, {timeout:1200});
     } else {
-      window.setTimeout(insertButton, 0);
+      window.setTimeout(bindExistingButtons, 0);
     }
   }
 
