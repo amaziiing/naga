@@ -951,6 +951,7 @@
     if(window.visualViewport) window.visualViewport.addEventListener('resize', apply, {passive:true});
     document.addEventListener('naga:layout-sections-loaded', apply);
     document.addEventListener('naga:layout-section-applied', apply);
+    document.addEventListener('naga:marquee-ready', apply);
     if(window.ResizeObserver){
       var ro = new ResizeObserver(apply);
       if(header) ro.observe(header);

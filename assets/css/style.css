@@ -15374,9 +15374,9 @@ body.custom-generated-page .bottom-nav{
   }
   html.bonus-scroll-page body.bonus-page.custom-generated-page > .bonus-main.pc-page-main{
     position:fixed!important;
-    top:69px!important;
+    top:var(--pc-page-top,69px)!important;
     right:0!important;
-    bottom:57px!important;
+    bottom:var(--pc-page-bottom,57px)!important;
     left:0!important;
     width:auto!important;
     height:auto!important;
@@ -15417,9 +15417,9 @@ body.custom-generated-page .bottom-nav{
   }
   html.bonus-scroll-page body.bonus-page.custom-generated-page > .bonus-main.pc-page-main{
     position:fixed!important;
-    top:57px!important;
+    top:var(--pc-page-top,57px)!important;
     right:0!important;
-    bottom:57px!important;
+    bottom:var(--pc-page-bottom,57px)!important;
     left:0!important;
     width:auto!important;
     height:auto!important;
