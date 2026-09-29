@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#080808">
+  <title>Game</title>
+  <style>
+    *{box-sizing:border-box}html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#080808;font-family:Arial,Helvetica,sans-serif}
+    #gameFrame{position:fixed;inset:0;width:100%;height:100%;border:0;background:#080808}
+    .home{position:fixed;z-index:2147483646;top:max(10px,env(safe-area-inset-top));left:max(10px,env(safe-area-inset-left));width:62px;height:62px;border:1px solid rgba(255,255,255,.8);border-radius:50%;background:rgba(0,0,0,.76);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-weight:700;font-size:13px;box-shadow:0 2px 12px rgba(0,0,0,.3);cursor:pointer}
+    .home svg{width:27px;height:27px;fill:#fff}.home:disabled{opacity:.65;cursor:wait}
+    .loading{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;background:#080808;color:#fff;text-align:center;padding:24px}.spinner{width:44px;height:44px;margin:0 auto 18px;border:4px solid rgba(255,255,255,.16);border-top-color:#fff;border-radius:50%;animation:spin .75s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+    .status{font-size:16px;font-weight:700}.sub{margin-top:8px;font-size:13px;color:#aaa;line-height:1.45}
+  </style>
+</head>
+<body>
+  <iframe id="gameFrame" allow="autoplay; fullscreen; clipboard-read; clipboard-write" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+  <div class="loading" id="loading"><div><div class="spinner"></div><div class="status" id="status">Launching game...</div><div class="sub" id="sub">Please wait while we connect you to the game provider.</div></div></div>
+  <button class="home" id="homeBtn" type="button" aria-label="Exit game and return home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 12h3v9h6v-6h2v6h6v-9h3L12 3z"/></svg><span>Home</span></button>
+<script>
+(function(){
+  var frame=document.getElementById('gameFrame'), loading=document.getElementById('loading'), status=document.getElementById('status'), sub=document.getElementById('sub');
+  var home=document.getElementById('homeBtn');
+  var params=new URLSearchParams(location.search), key=params.get('k')||'', launchUrl='', sessionId='', providerCode='', heartbeatUrl='', settling=false, heartbeatTimer=null;
+  function readLaunch(){
+    if(!key) return null;
+    try{ var raw=localStorage.getItem(key); if(!raw)return null; localStorage.removeItem(key); return JSON.parse(raw); }catch(e){ return null; }
+  }
+  var data=readLaunch();
+  if(data&&data.launchUrl){
+    launchUrl=String(data.launchUrl); sessionId=data.sessionId||''; providerCode=data.providerCode||''; heartbeatUrl=data.heartbeatUrl||'';
+    startShellHeartbeat();
+    frame.src=launchUrl;
+    frame.addEventListener('load',function(){ loading.style.display='none'; });
+  }else if(params.get('loading')==='1'){
+    home.style.display='none';
+  }else{
+    status.textContent='Unable to open game'; sub.textContent='The launch information is no longer available. Please return home and try again.';
+  }
+  function token(){ try{return localStorage.getItem('member_token')||localStorage.getItem('token')||localStorage.getItem('access_token')||'';}catch(e){return '';} }
+  function sendShellHeartbeat(){
+    if(settling||!sessionId||!heartbeatUrl||!token())return;
+    fetch(heartbeatUrl,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token()},body:JSON.stringify({sessionId:sessionId}),cache:'no-store'}).catch(function(){});
+  }
+  function startShellHeartbeat(){
+    if(heartbeatTimer){clearInterval(heartbeatTimer);heartbeatTimer=null;}
+    sendShellHeartbeat();
+    heartbeatTimer=setInterval(sendShellHeartbeat,5000);
+  }
+  function stopShellHeartbeat(){ if(heartbeatTimer){clearInterval(heartbeatTimer);heartbeatTimer=null;} }
+  document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible')sendShellHeartbeat(); });
+  window.addEventListener('focus',sendShellHeartbeat);
+
+  home.addEventListener('click',async function(){
+    if(settling)return; settling=true; stopShellHeartbeat(); home.disabled=true; loading.style.display='flex'; status.textContent='Returning funds...'; sub.textContent='Please wait while your provider balance is returned to Main Wallet. DO NOT close this browser until this finishes.';
+    try{
+      if(window.opener && !window.opener.closed && window.opener.NAGA_PROVIDER_LAUNCH){
+        await window.opener.NAGA_PROVIDER_LAUNCH.exitProviderGame({sessionId:sessionId||null,providerCode:providerCode||'',transferBackAll:true});
+        try{window.opener.focus();}catch(e){}
+        window.close();
+        return;
+      }
+      location.replace('provider-return.html');
+    }catch(e){
+      settling=false; startShellHeartbeat(); home.disabled=false; status.textContent='Return is still processing'; sub.textContent='DO NOT close this browser. We are still returning your game balance to Main Wallet. Please wait a moment, then press Home again to retry.';
+    }
+  });
+})();
+</script>
+</body>
+</html>

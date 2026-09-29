@@ -131,8 +131,10 @@
 
   async function ensureProviderCanLaunch(showMessage){
     if(providerSettlementPromise){
-      if(showMessage !== false) showProviderBusyMessage(SETTLING_GAME_MESSAGE);
-      return false;
+      // A previous click/close is already returning the provider balance. Wait for
+      // that single settlement operation instead of showing a blocking notice.
+      try{ await providerSettlementPromise; }catch(e){}
+      return !getActiveProviderSessionId();
     }
     if(providerLaunchInProgress){
       if(showMessage !== false) showProviderBusyMessage(LAUNCHING_GAME_MESSAGE);
@@ -148,25 +150,40 @@
     const sessionId = getActiveProviderSessionId();
     if(!sessionId) return true;
 
-    // Verify the stored session before blocking. If the backend already marked it
-    // CLOSED/SETTLED, clear the stale lock and allow the next game immediately.
+    // Preserve the original Naga flow: when the player comes back to the lobby and
+    // chooses another game, first close/settle the previous provider session, then
+    // continue the new launch. A previous safety change accidentally converted this
+    // into a hard "Game Notice" block, leaving the user unable to continue.
+    //
+    // Heartbeat is used only to cheaply clear a session the backend has already closed.
+    // OPEN/SETTLING sessions are actively resumed through /exit. The backend exit path
+    // is idempotent, so this is safe even if a close/stale worker reached it first.
     try{
       const heartbeat = await sendProviderHeartbeat(sessionId);
       if(handleHeartbeatResult(heartbeat, sessionId)) return true;
-      const info = getProviderSessionState(heartbeat);
-      const pendingState = info.state && PENDING_SETTLEMENT_STATES.indexOf(info.state) !== -1;
-      if(pendingState){
-        localStorage.setItem(PROVIDER_SESSION_STATE_KEY, info.state);
+    }catch(e){
+      // Do not treat a failed heartbeat as proof that the session is gone. /exit is
+      // the authoritative recovery path and can safely return an already-closed session.
+    }
+
+    const providerCode = localStorage.getItem('naga_active_provider_code') ||
+                         localStorage.getItem('naga_last_provider_code') || '';
+    providerSettlementPromise = (async function(){
+      try{
+        await exitProviderGame({ sessionId: sessionId, providerCode: providerCode, transferBackAll: true });
+        return true;
+      }catch(e){
+        // Keep the old session lock if money has not been confirmed back. Never allow
+        // the new game to launch on top of an unresolved provider wallet.
+        startPendingSettlementWatch(sessionId);
         if(showMessage !== false) showProviderBusyMessage(SETTLING_GAME_MESSAGE);
         return false;
+      }finally{
+        providerSettlementPromise = null;
+        syncLaunchAvailabilityUi();
       }
-    }catch(e){}
-
-    const storedState = String(localStorage.getItem(PROVIDER_SESSION_STATE_KEY) || '').toUpperCase();
-    if(showMessage !== false){
-      showProviderBusyMessage(PENDING_SETTLEMENT_STATES.indexOf(storedState) !== -1 ? SETTLING_GAME_MESSAGE : ACTIVE_GAME_MESSAGE);
-    }
-    return false;
+    })();
+    return await providerSettlementPromise;
   }
 
   function goLogin(){
@@ -784,7 +801,12 @@
     try{
       // Access succeeds only after the provider tab has navigated back to our origin.
       // Cross-origin game pages throw here and are correctly treated as still active.
-      return activeProviderTab.location && activeProviderTab.location.origin === window.location.origin;
+      if(!activeProviderTab.location || activeProviderTab.location.origin !== window.location.origin) return false;
+      // The embedded game shell intentionally remains same-origin while its iframe is
+      // cross-origin. Do not mistake the shell itself for a provider return navigation.
+      const path = String(activeProviderTab.location.pathname || '');
+      if(/\/provider-game\.html$/i.test(path)) return false;
+      return true;
     }catch(e){ return false; }
   }
 
@@ -846,7 +868,7 @@
       sendProviderHeartbeat(sessionId)
         .then(function(json){ emitPromotionProgressFromHeartbeat(json); handleHeartbeatResult(json, sessionId); })
         .catch(function(){});
-    }, 10000);
+    }, 5000);
   }
 
   async function directLaunch(payload, reservedProviderTab){
@@ -864,7 +886,7 @@
       const res = await fetch(LAUNCH_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-        body: JSON.stringify(payload)
+        body: JSON.stringify((function(){ const body = Object.assign({}, payload); delete body._display; return body; })())
       });
       const json = await res.json().catch(function(){ return {}; });
       if(window.NAGA_PROVIDER_LAUNCH_DEBUG) console.log('[NAGA launch] response:', res.status, json);
@@ -880,24 +902,29 @@
       const launchUrl = extractLaunchUrl(json);
       if(!launchUrl) throw new Error('Provider launch URL not returned. Please check BO provider response launch URL path.');
       closeModal();
-      // Give the provider tab a persistent window.name marker. When the provider's
-      // Lobby/Close button navigates this same tab back to our domain (often index.html
-      // instead of provider-return.html), provider-launch.js can identify that this is
-      // the returned game tab and immediately settle/clear the active session.
+      // Keep the provider inside a same-origin Naga game shell. The shell owns the
+      // visible Home control while the original lobby remains alive for heartbeat,
+      // close detection and settlement. Provider URLs are passed through localStorage
+      // instead of the query string so long/signed launch URLs are never truncated.
       const providerWindowName = PROVIDER_GAME_WINDOW_NAME_PREFIX + String(activeSession.sessionId || Date.now());
       const gameTab = reservedProviderTab && !reservedProviderTab.closed ? reservedProviderTab : null;
       if(!gameTab){
-        // Never redirect the Naga lobby to a transfer-wallet provider. Losing the lobby
-        // also loses heartbeat and popup-close detection, which makes the player's funds
-        // appear missing until backend stale recovery runs. If a reserved tab somehow
-        // disappeared after launch, immediately settle the just-opened provider session.
         try{
           await exitProviderGame({ sessionId: activeSession.sessionId, providerCode: activeSession.providerCode || payload.providerCode || '', transferBackAll: true });
         }catch(e){}
         throw new Error('Game window was closed or blocked. Your provider balance has been returned. Please allow pop-ups and try again.');
       }
       try{ gameTab.name = providerWindowName; }catch(e){}
-      try{ gameTab.location.replace(launchUrl); }catch(e){ gameTab.location.href = launchUrl; }
+      const shellKey = 'naga_provider_shell_' + String(activeSession.sessionId || Date.now()) + '_' + Math.random().toString(36).slice(2);
+      localStorage.setItem(shellKey, JSON.stringify({
+        launchUrl: launchUrl,
+        sessionId: activeSession.sessionId,
+        providerCode: activeSession.providerCode || payload.providerCode || '',
+        heartbeatUrl: HEARTBEAT_API_URL,
+        gameName: payload._display && payload._display.gameName ? payload._display.gameName : ''
+      }));
+      const shellUrl = 'provider-game.html?k=' + encodeURIComponent(shellKey);
+      try{ gameTab.location.replace(shellUrl); }catch(e){ gameTab.location.href = shellUrl; }
       try{ gameTab.focus(); }catch(e){}
       startProviderMonitor(activeSession.sessionId, activeSession.providerCode || payload.providerCode || '', gameTab);
       return launchUrl;
@@ -910,7 +937,46 @@
 
   async function launch(game, options){
     const payload = normalizePayload(game, options || {});
-    return openTransferModal(payload);
+    const token = getToken();
+    if(!token){ goLogin(); return null; }
+    if(!payload.gameId && !payload.providerCode) throw new Error('Provider Code is required.');
+
+    const promotionState = promotionLaunchState(payload);
+    if(!promotionState.allowed){
+      showProviderBusyMessage(promotionState.message);
+      return null;
+    }
+
+    // Reserve the game shell synchronously from the player's click. This preserves
+    // browser user activation while removing the old transfer-amount modal entirely.
+    const reservedProviderTab = window.open('provider-game.html?loading=1', '_blank');
+    if(!reservedProviderTab){
+      throw new Error('Game window was blocked. Please allow pop-ups for this site and try again. No funds were transferred.');
+    }
+    try{ reservedProviderTab.opener = window; }catch(e){}
+
+    if(!(await ensureProviderCanLaunch(true))){
+      try{ reservedProviderTab.close(); }catch(e){}
+      return null;
+    }
+
+    const launchPayload = Object.assign({}, payload);
+    delete launchPayload._display;
+    delete launchPayload.transferAmount;
+    // Server resolves and locks the authoritative Main Wallet balance. A zero balance
+    // intentionally launches with zero; the browser never sends a stale money amount.
+    launchPayload.transferAllMainWallet = true;
+    if(!launchPayload.returnUrl){
+      try{ launchPayload.returnUrl = new URL('provider-return.html', location.href).href; }catch(e){ launchPayload.returnUrl = 'provider-return.html'; }
+    }
+    // Retain display metadata locally for the game shell only; it is never sent as money data.
+    launchPayload._display = payload._display || {};
+    try{
+      return await directLaunch(launchPayload, reservedProviderTab);
+    }catch(err){
+      try{ if(reservedProviderTab && !reservedProviderTab.closed) reservedProviderTab.close(); }catch(e){}
+      throw err;
+    }
   }
 
   async function exitProviderGame(options){
@@ -938,7 +1004,15 @@
         body: JSON.stringify(payload)
       });
       json = await res.json().catch(function(){ return {}; });
-      if(!res.ok || json.status === 'error') throw new Error(json.message || json.error || 'Exit provider failed.');
+      if(!res.ok || json.status === 'error') {
+        // Never expose SQL/provider/internal exception text to players. Keep the detailed
+        // error in server logs/BO and show a safe retry message in the game shell.
+        throw new Error('We are still returning your game balance. Please keep this page open and try again in a moment.');
+      }
+      const exitState = getProviderSessionState(json);
+      if(exitState.state && !exitState.terminal){
+        throw new Error('We are still returning your game balance. Please keep this page open and try again in a moment.');
+      }
     }catch(e){
       // Allow an explicit retry if settlement really failed. The backend remains the
       // authority and will still reject heartbeat updates once the row is CLOSED.
