@@ -1627,12 +1627,38 @@ function gameMatchesActiveCategory(game){
   return !!catKey && gameCategoryText.includes(catKey);
 }
 
+function normalizedProviderGameCategory(game){
+  return String(game?.providerCategory || game?.provider_category || game?.categoryName || game?.category_name || game?.gameType || game?.game_type || '')
+    .trim();
+}
+
+function providerCategorySubId(name){
+  return `provider-category:${normalizeKey(name)}`;
+}
+
 function gameMatchesActiveSubCategory(game){
   if(!activeSubCategoryId) return true;
+  const activeId = String(activeSubCategoryId);
   const ids = gameSubCategoryIdsOf(game);
-  // Some provider feeds do not include subcategory metadata in the all-game
-  // response. Keep those games visible rather than producing a false empty list.
-  return !ids.length || ids.includes(String(activeSubCategoryId));
+  if(ids.includes(activeId)) return true;
+
+  // Provider game feeds often expose their per-game category (LIVE/SLOT/FISH/etc.)
+  // without a database sub_category_id. Synthetic provider-category tabs use that
+  // authoritative per-game value so every provider gets consistent subcategories.
+  if(activeId.startsWith('provider-category:')){
+    const providerCategory = normalizedProviderGameCategory(game);
+    return !!providerCategory && providerCategorySubId(providerCategory) === activeId;
+  }
+
+  // For an existing BO subcategory, also match an unassigned synced game by the
+  // provider's own category name. This keeps old/manual subcategories compatible
+  // while preventing games with no subCategoryId from leaking into every tab.
+  if(!ids.length){
+    const activeSub = subCategories.find(sub => String(sub.id) === activeId);
+    const providerCategory = normalizedProviderGameCategory(game);
+    return !!activeSub && !!providerCategory && normalizeKey(langText(activeSub, 'name', '')) === normalizeKey(providerCategory);
+  }
+  return false;
 }
 
 function categoryGamesFromCatalog(){
@@ -1653,13 +1679,38 @@ function filteredSubCategoriesFromCatalog(){
     if(inferredCategoryId != null) categoryContextIds.add(String(inferredCategoryId));
   }
 
-  return allSubCategories.filter(sub => {
+  const configured = allSubCategories.filter(sub => {
     const categoryIds = subCategoryCategoryIdsOf(sub);
     const providerCodes = subCategoryProviderCodesOf(sub);
     const categoryMatch = !categoryIds.length || categoryIds.some(id => categoryContextIds.has(String(id)));
     const providerMatch = !providerCodes.length || providerCodes.includes(providerCode);
     return categoryMatch && providerMatch;
   });
+
+  // A provider can support several categories even when its sync did not create
+  // game_sub_category rows. Build the missing tabs from each game's providerCategory
+  // instead of making subcategory visibility depend on provider-specific setup.
+  const providerGames = catalogGames
+    .filter(game => providerCodeOf(game) === providerCode)
+    .filter(gameMatchesActiveCategory);
+  const existingNames = new Set(configured.map(sub => normalizeKey(langText(sub, 'name', ''))).filter(Boolean));
+  const derived = [];
+  const derivedKeys = new Set();
+  providerGames.forEach(game => {
+    const name = normalizedProviderGameCategory(game);
+    const key = normalizeKey(name);
+    if(!name || !key || existingNames.has(key) || derivedKeys.has(key)) return;
+    derivedKeys.add(key);
+    derived.push({
+      id: providerCategorySubId(name),
+      name,
+      providerCode,
+      categoryId: activeCategoryId,
+      syntheticProviderCategory: true
+    });
+  });
+
+  return [...configured, ...derived];
 }
 
 function preloadSlotGameImages(list, limit = 40){
