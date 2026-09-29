@@ -1687,30 +1687,24 @@ function filteredSubCategoriesFromCatalog(){
     return categoryMatch && providerMatch;
   });
 
-  // A provider can support several categories even when its sync did not create
-  // game_sub_category rows. Build the missing tabs from each game's providerCategory
-  // instead of making subcategory visibility depend on provider-specific setup.
-  const providerGames = catalogGames
-    .filter(game => providerCodeOf(game) === providerCode)
-    .filter(gameMatchesActiveCategory);
-  const existingNames = new Set(configured.map(sub => normalizeKey(langText(sub, 'name', ''))).filter(Boolean));
-  const derived = [];
-  const derivedKeys = new Set();
-  providerGames.forEach(game => {
-    const name = normalizedProviderGameCategory(game);
-    const key = normalizeKey(name);
-    if(!name || !key || existingNames.has(key) || derivedKeys.has(key)) return;
-    derivedKeys.add(key);
-    derived.push({
-      id: providerCategorySubId(name),
-      name,
-      providerCode,
-      categoryId: activeCategoryId,
-      syntheticProviderCategory: true
-    });
+  // game_sub_category is the display source of truth. Do not manufacture tabs
+  // from raw providerCategory values: some provider feeds use numeric/internal
+  // category codes (for example "1" or "5"), which must never become UI labels.
+  // A single configured subcategory is also redundant, so keep the provider's
+  // game grid flat unless there are at least two valid active subcategories.
+  const unique = [];
+  const seen = new Set();
+  configured.forEach(sub => {
+    const id = String(sub?.id ?? '').trim();
+    const name = String(langText(sub, 'name', '') || '').trim();
+    if(!id || !name) return;
+    const key = `${id}|${normalizeKey(name)}`;
+    if(seen.has(key)) return;
+    seen.add(key);
+    unique.push(sub);
   });
 
-  return [...configured, ...derived];
+  return unique.length >= 2 ? unique : [];
 }
 
 function preloadSlotGameImages(list, limit = 40){
