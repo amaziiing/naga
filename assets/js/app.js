@@ -2296,6 +2296,13 @@ loadSliderBanners();
       resizeTick=setTimeout(update, 100);
     }, {passive:true});
     window.addEventListener('scroll', update, {passive:true});
+    // Mobile SLOT uses .main-layout as its bounded scroll viewport. Bind it
+    // directly as well so the back-to-top state keeps updating even when the
+    // user changes from ALL/HOT into SLOT after this handler was initialized.
+    var mainLayout = q('.main-layout');
+    if(mainLayout && mainLayout.addEventListener){
+      mainLayout.addEventListener('scroll', update, {passive:true});
+    }
     document.addEventListener('naga:scroll-target-changed', function(){ requestAnimationFrame(update); });
     setTimeout(update, 300);
   }
@@ -2366,6 +2373,7 @@ loadSliderBanners();
       document.body.classList.add('mobile-slot-natural-scroll');
       document.body.classList.remove('mobile-slot-scroll-handoff', 'slot-banner-passed');
       shell.style.removeProperty('--provider-lobby-height');
+      try{ document.dispatchEvent(new CustomEvent('naga:scroll-target-changed')); }catch(_e){}
     }else{
       available = Math.floor(viewportBottom - rect.top);
       document.body.classList.remove('mobile-slot-natural-scroll', 'mobile-slot-scroll-handoff', 'slot-banner-passed');
