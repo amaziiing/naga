@@ -15,7 +15,13 @@ window.NAGA_CONFIG = {
     { name: 'Template 1', url: 'https://titanx7.com/index.html' },
     { name: 'Template 2', url: 'https://t2.titanx7.com/index.html' },
     { name: 'Template 3', url: 'https://t3.titanx7.com/index.html' },
-    { name: 'Template 4', url: 'https://t4.titanx7.com/index.html' }
+    { name: 'Template 4', url: 'https://t4.titanx7.com/index.html' },
+    { name: 'Template 5', url: 'https://t5.titanx7.com/index.html' },
+    { name: 'Template 6', url: 'https://t6.titanx7.com/index.html' },
+    { name: 'Template 7', url: 'https://t7.titanx7.com/index.html' },
+    { name: 'Template 8', url: 'https://t8.titanx7.com/index.html' },
+    { name: 'Template 9', url: 'https://t9.titanx7.com/index.html' },
+    { name: 'Template 10', url: 'https://t10.titanx7.com/index.html' },
   ]
 };
 
