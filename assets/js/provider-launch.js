@@ -575,7 +575,7 @@
   }
 
   function isTerminalSessionMessage(message){
-    return /(already\s*(closed|settled|exited)|session\s*(is\s*)?(closed|settled|expired|inactive)|no\s*(active|open)\s*session|session\s*not\s*found)/i.test(String(message || ''));
+    return /(already\s*(closed|settled|exited)|session\s*(is\s*)?(closed|settled|expired|inactive)|no\s*(active|open)\s*session|session\s*not\s*found|invalid\s*provider\s*session)/i.test(String(message || ''));
   }
 
   async function openTransferModal(payload){
