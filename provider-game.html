@@ -32,7 +32,10 @@
     launchUrl=String(data.launchUrl); sessionId=data.sessionId||''; providerCode=data.providerCode||''; heartbeatUrl=data.heartbeatUrl||'';
     startShellHeartbeat();
     frame.src=launchUrl;
-    frame.addEventListener('load',function(){ loading.style.display='none'; });
+    frame.addEventListener('load',function(){
+      loading.style.display='none';
+      detectProviderInternalReturn();
+    });
   }else if(params.get('loading')==='1'){
     home.style.display='none';
   }else{
@@ -49,6 +52,57 @@
     heartbeatTimer=setInterval(sendShellHeartbeat,5000);
   }
   function stopShellHeartbeat(){ if(heartbeatTimer){clearInterval(heartbeatTimer);heartbeatTimer=null;} }
+
+  // Provider-owned Home/Lobby buttons can navigate the cross-origin game iframe
+  // back to TitanX. Once that happens the iframe becomes same-origin/readable.
+  // Treat it as a provider exit instead of rendering login/index inside the shell.
+  function detectProviderInternalReturn(){
+    if(settling || !frame || !frame.isConnected) return;
+    var href='', origin='', path='';
+    try{
+      href=String(frame.contentWindow.location.href||'');
+      origin=String(frame.contentWindow.location.origin||'');
+      path=String(frame.contentWindow.location.pathname||'');
+    }catch(e){
+      return; // Normal while the provider game is cross-origin.
+    }
+    if(!href || href==='about:blank' || origin!==window.location.origin) return;
+    if(/\/(?:login|index|provider-return)\.html$/i.test(path) || path==='/' || path===''){
+      settleProviderInternalReturn();
+    }
+  }
+
+  async function settleProviderInternalReturn(){
+    if(settling) return;
+    settling=true;
+    stopShellHeartbeat();
+    home.disabled=true;
+    loading.style.display='flex';
+    status.textContent='Returning funds...';
+    sub.textContent='The provider game has closed. Returning your balance to Main Wallet.';
+
+    try{ frame.src='about:blank'; frame.remove(); }catch(e){}
+    await new Promise(function(resolve){ setTimeout(resolve,750); });
+
+    try{
+      if(window.opener && !window.opener.closed && window.opener.NAGA_PROVIDER_LAUNCH){
+        await window.opener.NAGA_PROVIDER_LAUNCH.exitProviderGame({
+          sessionId:sessionId||null,
+          providerCode:providerCode||'',
+          transferBackAll:true,
+          acceptPendingSettlement:true
+        });
+        try{ window.opener.focus(); }catch(e){}
+        window.close();
+        return;
+      }
+      location.replace('provider-return.html');
+    }catch(e){
+      try{ if(window.opener && !window.opener.closed) window.opener.focus(); }catch(ignore){}
+      window.close();
+    }
+  }
+
   document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible')sendShellHeartbeat(); });
   window.addEventListener('focus',sendShellHeartbeat);
 
