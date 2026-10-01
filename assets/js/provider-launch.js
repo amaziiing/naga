@@ -748,7 +748,12 @@
     // "session already closed" or "no active session". Treat those messages
     // as terminal too, otherwise the browser keeps a stale localStorage lock
     // until the user manually refreshes the page.
-    const terminalByMessage = isTerminalSessionMessage(message);
+    // A heartbeat can return the generic message "Session already closed" for any
+    // non-OPEN row, including SETTLING. SETTLING is NOT terminal: the backend may still
+    // be running LOGOUT/BALANCE/WITHDRAW. Do not clear the browser session/wallet lock
+    // until the explicit state is actually terminal. Only fall back to message-based
+    // terminal detection when the backend did not provide a state at all.
+    const terminalByMessage = !statusInfo.state && isTerminalSessionMessage(message);
     if(!statusInfo.terminal && !terminalByMessage) return false;
 
     stopProviderMonitor();
