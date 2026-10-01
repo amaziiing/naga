@@ -763,37 +763,17 @@
     localStorage.setItem(PROVIDER_SESSION_STATE_KEY, 'PENDING_SETTLEMENT');
     syncLaunchAvailabilityUi();
 
-    // IMPORTANT: once exit/settlement has started, do NOT keep sending provider
-    // heartbeats. A deferred-zero settlement deliberately releases SETTLING back
-    // to OPEN so the backend stale-session scheduler can retry after the provider
-    // releases its game wallet. Re-heartbeating that OPEN row every 3 seconds keeps
-    // it permanently fresh and prevents the scheduler from ever picking it up.
-    //
-    // Poll the authoritative session state without refreshing lastHeartbeatAt by
-    // reusing /exit. /exit is session-idempotent: CLOSED returns immediately, OPEN
-    // is claimed for settlement, and SETTLING resumes the already-claimed exit.
-    let pendingPollBusy = false;
-    const poll = async function(){
-      if(pendingPollBusy) return;
-      pendingPollBusy = true;
-      try{
-        const providerCode = localStorage.getItem('naga_active_provider_code') ||
-                             localStorage.getItem('naga_last_provider_code') || '';
-        await exitProviderGame({
-          sessionId: sessionId,
-          providerCode: providerCode,
-          transferBackAll: true,
-          acceptPendingSettlement: false
-        });
-      }catch(e){
-        // Provider may still be releasing its internal wallet/playing state. Keep
-        // the local session lock and retry; importantly, no heartbeat is sent here.
-      }finally{
-        pendingPollBusy = false;
-      }
+    const poll = function(){
+      sendProviderHeartbeat(sessionId)
+        .then(function(json){
+          if(handleHeartbeatResult(json, sessionId)) return;
+          const info = getProviderSessionState(json);
+          if(info.state) localStorage.setItem(PROVIDER_SESSION_STATE_KEY, info.state);
+        })
+        .catch(function(){});
     };
 
-    // Give providers a short release window, then retry settlement.
+    poll();
     providerMonitorTimer = setInterval(poll, 3000);
   }
 
