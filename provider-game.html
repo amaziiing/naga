@@ -53,17 +53,42 @@
   window.addEventListener('focus',sendShellHeartbeat);
 
   home.addEventListener('click',async function(){
-    if(settling)return; settling=true; stopShellHeartbeat(); home.disabled=true; loading.style.display='flex'; status.textContent='Returning funds...'; sub.textContent='Please wait while your provider balance is returned to Main Wallet. DO NOT close this browser until this finishes.';
+    if(settling)return; settling=true; stopShellHeartbeat(); home.disabled=true; loading.style.display='flex'; status.textContent='Returning funds...'; sub.textContent='Closing the provider game and returning your balance to Main Wallet.';
+
+    // IMPORTANT: unload the cross-origin provider game BEFORE asking the backend for
+    // LOGOUT/BALANCE/WITHDRAW. Some fishing/arcade providers keep funds in an internal
+    // game wallet until the game iframe/browser is actually unloaded. Waiting for
+    // settlement while keeping this iframe alive creates a deadlock: provider BALANCE
+    // stays 0 until the page closes, while this page waits for BALANCE before closing.
+    try{
+      frame.src='about:blank';
+      frame.remove();
+    }catch(e){}
+
+    // Give the provider page a short unload window before the first authoritative
+    // settlement check. The backend remains responsible for later retries if the
+    // provider needs longer to release its internal game wallet.
+    await new Promise(function(resolve){ setTimeout(resolve, 750); });
+
     try{
       if(window.opener && !window.opener.closed && window.opener.NAGA_PROVIDER_LAUNCH){
-        await window.opener.NAGA_PROVIDER_LAUNCH.exitProviderGame({sessionId:sessionId||null,providerCode:providerCode||'',transferBackAll:true});
+        await window.opener.NAGA_PROVIDER_LAUNCH.exitProviderGame({
+          sessionId:sessionId||null,
+          providerCode:providerCode||'',
+          transferBackAll:true,
+          acceptPendingSettlement:true
+        });
         try{window.opener.focus();}catch(e){}
         window.close();
         return;
       }
       location.replace('provider-return.html');
     }catch(e){
-      settling=false; startShellHeartbeat(); home.disabled=false; status.textContent='Return is still processing'; sub.textContent='DO NOT close this browser. We are still returning your game balance to Main Wallet. Please wait a moment, then press Home again to retry.';
+      // The provider iframe is intentionally already closed. Do not restart heartbeat
+      // or recreate the game. The backend stale/pending settlement worker can safely
+      // continue returning funds after this shell closes.
+      try{ if(window.opener && !window.opener.closed) window.opener.focus(); }catch(ignore){}
+      window.close();
     }
   });
 })();

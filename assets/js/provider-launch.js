@@ -1011,6 +1011,15 @@
       }
       const exitState = getProviderSessionState(json);
       if(exitState.state && !exitState.terminal){
+        if(opt.acceptPendingSettlement && payload.sessionId != null){
+          // The provider game page has already been unloaded. Keep the backend session
+          // lock in localStorage and let the opener poll until Spring marks it terminal.
+          // Do not force the game shell to remain open; some providers only release
+          // fishing/arcade wallet funds after that shell/iframe is gone.
+          if(payload.sessionId != null) providerClosingSessionIds.delete(String(payload.sessionId));
+          startPendingSettlementWatch(payload.sessionId);
+          return json;
+        }
         throw new Error('We are still returning your game balance. Please keep this page open and try again in a moment.');
       }
     }catch(e){
