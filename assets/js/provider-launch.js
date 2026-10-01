@@ -1134,8 +1134,15 @@
         const heartbeat = await sendProviderHeartbeat(sessionId);
         return handleHeartbeatResult(heartbeat, sessionId);
       }catch(e){
-        // Network errors must not unlock a genuinely active game. The next focus,
-        // visibility or launch attempt will retry the backend reconciliation.
+        // A stored session can belong to an older login/member on this device.
+        // The backend correctly rejects that stale id as "Invalid provider session".
+        // Treat terminal backend responses as authoritative and clear only the local
+        // stale lock. Real network/temporary errors must keep the active-game lock.
+        if(isTerminalSessionMessage(e && e.message)){
+          clearStoredProviderSession();
+          refreshWalletAfterProviderExit();
+          return true;
+        }
         return false;
       }finally{
         providerSessionReconcilePromise = null;
